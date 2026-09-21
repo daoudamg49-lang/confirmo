@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Confirmo</string>
+    <string name="title_activity_main">Confirmo</string>
+    <string name="package_name">tg.confirmo.app</string>
+    <string name="custom_url_scheme">tg.confirmo.app</string>
+</resources>
