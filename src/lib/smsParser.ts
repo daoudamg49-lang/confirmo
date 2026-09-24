@@ -1,9 +1,10 @@
 import type { ParsedSmsInfo } from './types'
 
 /**
- * Best-effort parser for Flooz / Mixx by Yas confirmation SMS. Operators don't publish a
+ * Best-effort parser for Flooz / Mixx by Yas confirmation text — either an SMS, or the direct
+ * USSD response text returned by the in-app single-shot USSD call. Operators don't publish a
  * fixed template and wording can change, so every field is optional and matched with several
- * fallback patterns. Never throws — an SMS that matches nothing still returns `{ raw }` so the
+ * fallback patterns. Never throws — text that matches nothing still returns `{ raw }` so the
  * transaction can be reviewed manually instead of silently failing.
  */
 export function parseConfirmationSms(text: string): ParsedSmsInfo {
@@ -69,4 +70,16 @@ export function hasUsefulData(info: ParsedSmsInfo): boolean {
   return Boolean(
     info.providerReference || info.withdrawalCode || info.amount || info.fee || info.balanceAfter || info.dateTime,
   )
+}
+
+const FAILURE_KEYWORDS =
+  /\b(incorrect|invalide|insuffisant|échec|echouee?|erreur|refus[ée]|annul[ée]|indisponible|impossible|non autoris[ée])\b/i
+
+/**
+ * A USSD response is just text — Android hands back whatever the network sent, whether that's a
+ * confirmation or a rejection (wrong PIN, insufficient balance, etc). This is a best-effort guess
+ * at which one it is, since there's no structured status field to check.
+ */
+export function looksLikeFailure(text: string): boolean {
+  return FAILURE_KEYWORDS.test(text)
 }

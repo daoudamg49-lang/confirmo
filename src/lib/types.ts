@@ -1,9 +1,9 @@
 export type Operator = 'moov' | 'yas' | 'unknown'
 
-export type TransactionStatus = 'pending' | 'success' | 'failed' | 'awaiting_sms'
+export type TransactionStatus = 'pending' | 'success' | 'failed' | 'awaiting_sms' | 'cancelled'
 
 /** How the transaction's final details were obtained. */
-export type ConfirmationSource = 'simulated' | 'sms_auto' | 'manual'
+export type ConfirmationSource = 'simulated' | 'sms_auto' | 'ussd_response' | 'manual'
 
 /**
  * From the facilitator's point of view (not a registered agent — no PV/point-of-sale code):
@@ -48,6 +48,8 @@ export interface TransferRequest {
   counterpartyNumber: string
   operator: Operator
   amount: number
+  /** Transient — used only for the single in-app USSD call, never persisted or logged. */
+  pin?: string
 }
 
 export interface ParsedSmsInfo {
@@ -65,6 +67,7 @@ export interface TransferResult {
   providerReference?: string
   failureReason?: string
   smsInfo?: ParsedSmsInfo
+  confirmationSource?: ConfirmationSource
 }
 
 export type MarginRuleType = 'flat' | 'percent'

@@ -1,11 +1,15 @@
+import { useState } from 'react'
 import { formatFcfa } from '../lib/frenchNumbers'
+import { errorFeedback, successFeedback, tapFeedback } from '../lib/haptics'
 import { OPERATOR_COLOR } from '../lib/operator'
 import { formatTogoNumber } from '../lib/operator'
+import { useWallet } from '../state/WalletContext'
 import type { Transaction } from '../lib/types'
 import { StatusBadge } from './StatusBadge'
 
 const CONFIRMATION_LABEL: Record<NonNullable<Transaction['confirmationSource']>, string> = {
   sms_auto: '📩 Confirmé par SMS',
+  ussd_response: '📟 Confirmé par USSD',
   manual: '✍️ Confirmé manuellement',
   simulated: '🧪 Simulation',
 }
@@ -16,12 +20,30 @@ const OPERATION_LABEL: Record<Transaction['operationType'], string> = {
   transfert: '↗️ Transfert',
 }
 
+const RETRYABLE_STATUSES: Transaction['status'][] = ['pending', 'awaiting_sms']
+
 export function TransactionRow({ transaction }: { transaction: Transaction }) {
+  const { isNative, retrySmsCapture } = useWallet()
+  const [retrying, setRetrying] = useState(false)
   const time = new Date(transaction.createdAt).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })
+  const canRetry = isNative && RETRYABLE_STATUSES.includes(transaction.status)
+
+  async function handleRetry() {
+    tapFeedback()
+    setRetrying(true)
+    try {
+      const updated = await retrySmsCapture(transaction.id)
+      if (updated.status === 'success') successFeedback()
+    } catch {
+      errorFeedback()
+    } finally {
+      setRetrying(false)
+    }
+  }
 
   return (
     <div
-      className="flex items-start gap-3 rounded-2xl border p-3.5"
+      className="flex items-start gap-3 rounded-2xl border p-3.5 transition-shadow"
       style={{ borderColor: 'var(--color-border)', background: 'var(--color-surface)', boxShadow: 'var(--shadow-card)' }}
     >
       <span
@@ -58,12 +80,24 @@ export function TransactionRow({ transaction }: { transaction: Transaction }) {
             {transaction.providerReference ? ` · Réf. ${transaction.providerReference}` : ''}
           </p>
         )}
-        {transaction.status === 'failed' && transaction.failureReason && (
+        {(transaction.status === 'failed' || transaction.status === 'cancelled') && transaction.failureReason && (
           <p className="mt-1 text-xs" style={{ color: 'var(--color-danger)' }}>
             {transaction.failureReason}
           </p>
         )}
       </div>
+      {canRetry && (
+        <button
+          type="button"
+          onClick={handleRetry}
+          disabled={retrying}
+          aria-label="Relancer la vérification"
+          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-base transition active:scale-90 disabled:opacity-50"
+          style={{ background: 'var(--color-primary-soft)', color: 'var(--color-primary)' }}
+        >
+          <span className={retrying ? 'inline-block animate-spin' : 'inline-block'}>🔁</span>
+        </button>
+      )}
     </div>
   )
 }

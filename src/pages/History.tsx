@@ -45,7 +45,7 @@ export function History() {
   )
 
   return (
-    <div className="flex flex-1 flex-col gap-4 p-5">
+    <div className="page-enter flex flex-1 flex-col gap-4 p-5">
       <h1 className="text-xl font-semibold">Historique</h1>
 
       <div

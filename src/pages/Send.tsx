@@ -1,8 +1,10 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { OperatorBadge } from '../components/OperatorBadge'
+import { PinPad } from '../components/PinPad'
 import { VoiceInputField } from '../components/VoiceInputField'
 import { formatFcfa, parseSpokenAmount, parseSpokenDigits } from '../lib/frenchNumbers'
+import { tapFeedback } from '../lib/haptics'
 import {
   cleanTogoNumber,
   detectOperator,
@@ -16,7 +18,17 @@ import { speak } from '../lib/voice'
 import { useWallet } from '../state/WalletContext'
 import type { OperationType, Transaction } from '../lib/types'
 
-type Step = 'type' | 'number' | 'confirmNumber' | 'amount' | 'confirmAmount' | 'fees' | 'review' | 'processing' | 'result'
+type Step =
+  | 'type'
+  | 'number'
+  | 'confirmNumber'
+  | 'amount'
+  | 'confirmAmount'
+  | 'fees'
+  | 'review'
+  | 'pin'
+  | 'processing'
+  | 'result'
 
 const TYPE_INFO: Record<OperationType, { title: string; icon: string; numberLabel: string; amountLabel: string }> = {
   depot: {
@@ -50,6 +62,7 @@ export function Send() {
   const [numberInput, setNumberInput] = useState('')
   const [amountInput, setAmountInput] = useState('')
   const [clientChargeInput, setClientChargeInput] = useState('')
+  const [pin, setPin] = useState('')
   const [result, setResult] = useState<Transaction | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [retrying, setRetrying] = useState(false)
@@ -91,7 +104,7 @@ export function Send() {
     setStep('fees')
   }
 
-  async function handleConfirmSend() {
+  async function handleConfirmSend(enteredPin?: string) {
     setStep('processing')
     setError(null)
     try {
@@ -101,16 +114,21 @@ export function Send() {
         operator,
         amount,
         clientCharge,
+        pin: enteredPin,
       })
+      setPin('') // never keep the PIN in memory longer than the single call that needed it
       setResult(transaction)
       if (transaction.status === 'success') speak('Opération confirmée.')
       else if (transaction.status === 'failed') speak("L'opération a échoué.")
       setStep('result')
     } catch (e) {
+      setPin('')
       setError(e instanceof Error ? e.message : 'Erreur inconnue')
       setStep('review')
     }
   }
+
+  const needsInAppPin = isNative && isOutgoing
 
   async function handleRetryCapture() {
     if (!result) return
@@ -137,6 +155,7 @@ export function Send() {
     setNumberInput('')
     setAmountInput('')
     setClientChargeInput('')
+    setPin('')
     setResult(null)
     setError(null)
   }
@@ -147,6 +166,7 @@ export function Send() {
         {info.icon} {info.title}
       </h1>
 
+      <div key={step} className="step-enter flex flex-1 flex-col gap-6">
       {step === 'type' && (
         <div className="flex flex-col gap-3">
           {(Object.keys(TYPE_INFO) as OperationType[]).map((type) => (
@@ -332,13 +352,13 @@ export function Send() {
             </div>
           )}
 
-          {isNative && isOutgoing && ussdPlan && (
+          {needsInAppPin && ussdPlan && (
             <div className="rounded-2xl border p-3.5 text-sm" style={{ borderColor: 'var(--color-info)', background: 'var(--color-primary-soft)' }}>
-              <p className="font-medium">📟 Code USSD qui sera composé :</p>
+              <p className="font-medium">📟 Requête USSD qui sera envoyée :</p>
               <p className="mt-1 font-mono text-base">{ussdPlan.displayCode}</p>
               <p className="mt-1" style={{ color: 'var(--color-text-muted)' }}>
-                Votre code secret {ussdPlan.menuLabel} vous sera demandé directement par l'opérateur, à l'écran
-                suivant — jamais dans cette application.
+                À l'étape suivante, vous saisirez votre code secret {ussdPlan.menuLabel} directement dans Confirmo —
+                il n'est jamais enregistré, seulement transmis à cette unique opération.
               </p>
             </div>
           )}
@@ -354,10 +374,40 @@ export function Send() {
               {error}
             </p>
           )}
-          <PrimaryButton onClick={handleConfirmSend}>
-            {operationType === 'retrait' ? 'Attendre le paiement du client' : isNative ? 'Confirmer et composer le USSD' : 'Confirmer'}
+          <PrimaryButton
+            onClick={() => {
+              if (needsInAppPin) setStep('pin')
+              else handleConfirmSend()
+            }}
+          >
+            {operationType === 'retrait' ? 'Attendre le paiement du client' : needsInAppPin ? 'Continuer' : 'Confirmer'}
           </PrimaryButton>
           <SecondaryButton onClick={() => setStep('fees')}>Retour</SecondaryButton>
+        </div>
+      )}
+
+      {step === 'pin' && (
+        <div className="flex flex-1 flex-col items-center gap-8 pt-4 text-center">
+          <div>
+            <p className="text-lg font-semibold">Code secret {ussdPlan?.menuLabel}</p>
+            <p className="mt-1 text-sm" style={{ color: 'var(--color-text-muted)' }}>
+              Jamais enregistré — utilisé uniquement pour cette opération.
+            </p>
+          </div>
+          <PinPad value={pin} onChange={setPin} maxLength={6} />
+          <div className="flex w-full flex-col gap-3">
+            <PrimaryButton disabled={pin.length < 4} onClick={() => handleConfirmSend(pin)}>
+              Valider et envoyer
+            </PrimaryButton>
+            <SecondaryButton
+              onClick={() => {
+                setPin('')
+                setStep('review')
+              }}
+            >
+              Retour
+            </SecondaryButton>
+          </div>
         </div>
       )}
 
@@ -369,11 +419,11 @@ export function Send() {
           />
           {!isOutgoing ? (
             <p className="font-medium">En attente du paiement du client…</p>
-          ) : isNative ? (
+          ) : needsInAppPin ? (
             <div className="flex flex-col gap-1">
-              <p className="font-medium">Ouverture du clavier USSD…</p>
+              <p className="font-medium">Communication avec l'opérateur…</p>
               <p className="text-sm" style={{ color: 'var(--color-text-muted)' }}>
-                Entrez votre code secret {ussdPlan?.menuLabel} sur l'écran de votre téléphone, puis revenez ici.
+                Si l'appli Téléphone s'ouvre à la place, entrez votre code secret là-bas puis revenez ici.
               </p>
             </div>
           ) : (
@@ -433,6 +483,7 @@ export function Send() {
           </div>
         </div>
       )}
+      </div>
     </div>
   )
 }
@@ -469,9 +520,12 @@ function PrimaryButton({
   return (
     <button
       type="button"
-      onClick={onClick}
+      onClick={() => {
+        tapFeedback()
+        onClick()
+      }}
       disabled={disabled}
-      className="rounded-2xl py-3.5 text-base font-semibold text-white transition disabled:opacity-40 active:scale-[0.98]"
+      className="rounded-2xl py-3.5 text-base font-semibold text-white transition-all duration-150 disabled:opacity-40 active:scale-[0.96]"
       style={{ background: 'var(--color-primary)' }}
     >
       {children}
@@ -483,8 +537,11 @@ function SecondaryButton({ children, onClick }: { children: React.ReactNode; onC
   return (
     <button
       type="button"
-      onClick={onClick}
-      className="flex-1 rounded-2xl border py-3.5 text-base font-medium active:scale-[0.98]"
+      onClick={() => {
+        tapFeedback()
+        onClick()
+      }}
+      className="flex-1 rounded-2xl border py-3.5 text-base font-medium transition-all duration-150 active:scale-[0.96]"
       style={{ borderColor: 'var(--color-border)', color: 'var(--color-text)' }}
     >
       {children}

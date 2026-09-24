@@ -17,7 +17,7 @@ export class MockProvider implements TransferProvider {
       return { status: 'failed', failureReason: "Le réseau de l'opérateur n'a pas répondu, veuillez réessayer" }
     }
 
-    return { status: 'success', providerReference: `SIM-${Date.now().toString(36).toUpperCase()}` }
+    return { status: 'success', providerReference: `SIM-${Date.now().toString(36).toUpperCase()}`, confirmationSource: 'simulated' }
   }
 
   async receive(request: TransferRequest): Promise<TransferResult> {
@@ -27,6 +27,6 @@ export class MockProvider implements TransferProvider {
       return { status: 'failed', failureReason: "Opérateur non reconnu pour ce numéro" }
     }
 
-    return { status: 'success', providerReference: `SIM-${Date.now().toString(36).toUpperCase()}` }
+    return { status: 'success', providerReference: `SIM-${Date.now().toString(36).toUpperCase()}`, confirmationSource: 'simulated' }
   }
 }

@@ -12,7 +12,7 @@ export function Home() {
   const today = totalsForDay(transactions, todayKey)
 
   return (
-    <div className="flex flex-1 flex-col gap-5 p-5">
+    <div className="page-enter flex flex-1 flex-col gap-5 p-5">
       <div
         className="rounded-3xl p-6 text-white"
         style={{ background: 'var(--gradient-hero)', boxShadow: 'var(--shadow-hero)' }}

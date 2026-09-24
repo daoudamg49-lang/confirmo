@@ -1,4 +1,5 @@
 import { NavLink } from 'react-router-dom'
+import { tapFeedback } from '../lib/haptics'
 
 const ITEMS = [
   { to: '/', label: 'Accueil', icon: '🏠' },
@@ -19,9 +20,8 @@ export function BottomNav() {
           key={item.to}
           to={item.to}
           end={item.to === '/'}
-          className={({ isActive }) =>
-            `flex flex-1 flex-col items-center gap-1 py-3 text-xs font-medium ${isActive ? '' : ''}`
-          }
+          onClick={tapFeedback}
+          className="flex flex-1 flex-col items-center gap-1 py-3 text-xs font-medium transition-transform active:scale-90"
           style={({ isActive }) => ({
             color: isActive ? 'var(--color-primary)' : 'var(--color-text-muted)',
           })}

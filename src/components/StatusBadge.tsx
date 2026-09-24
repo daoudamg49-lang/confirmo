@@ -5,6 +5,7 @@ const LABELS: Record<TransactionStatus, string> = {
   awaiting_sms: 'Attente SMS',
   success: 'Réussi',
   failed: 'Échoué',
+  cancelled: 'Annulé',
 }
 
 const COLORS: Record<TransactionStatus, string> = {
@@ -12,6 +13,7 @@ const COLORS: Record<TransactionStatus, string> = {
   awaiting_sms: '#0ea5e9',
   success: 'var(--color-success)',
   failed: 'var(--color-danger)',
+  cancelled: 'var(--color-text-muted)',
 }
 
 export function StatusBadge({ status }: { status: TransactionStatus }) {

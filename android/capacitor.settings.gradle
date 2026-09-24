@@ -2,5 +2,8 @@
 include ':capacitor-android'
 project(':capacitor-android').projectDir = new File('../node_modules/@capacitor/android/capacitor')
 
+include ':capacitor-haptics'
+project(':capacitor-haptics').projectDir = new File('../node_modules/@capacitor/haptics/android')
+
 include ':capawesome-capacitor-android-sms-retriever'
 project(':capawesome-capacitor-android-sms-retriever').projectDir = new File('../node_modules/@capawesome/capacitor-android-sms-retriever/android')

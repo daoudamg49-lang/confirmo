@@ -1,19 +1,21 @@
 import type { Operator } from './types'
 
 /**
- * USSD templates for launching a real transfer on the phone's native dialer. The secret PIN is
- * deliberately NEVER part of these strings — the operator's own USSD session prompts for it on
- * the next screen, which is the whole point: the code never passes through this app.
+ * USSD templates for a transfer. Sourced from public operator documentation (Moov Africa Togo,
+ * Yas Togo) as of 2026-09-21. Exact menu digits can change or vary by SIM/firmware — always show
+ * the user the composed string before sending, and offer the base code as a manual fallback.
  *
- * Sourced from public operator documentation (Moov Africa Togo, Yas Togo) as of 2026-09-21.
- * Exact menu digits can change or vary by SIM/firmware — always show the user the composed
- * string before dialing, and offer the base code as a manual fallback.
+ * Two ways to use these:
+ * - `displayCode` (no PIN) is shown in the review screen for transparency, and is what's dialed
+ *   via the native Dialer when the in-app USSD API isn't available on the device.
+ * - `withPin()` appends the PIN for the in-app path (`UssdDialerPlugin.sendUssd`), which requires
+ *   the whole request — including the PIN — in one shot since Android has no public API to
+ *   continue an interactive USSD session. The PIN only ever exists in memory for this one call.
  */
 interface UssdTemplate {
-  /** `{number}` and `{amount}` placeholders, PIN intentionally omitted. */
+  /** `{number}` and `{amount}` placeholders, no PIN. */
   sameNetwork: string
   otherNetwork: string
-  /** Base code to fall back to if the shortcut doesn't work on the user's device. */
   manualBase: string
   menuLabel: string
 }
@@ -34,18 +36,20 @@ const TEMPLATES: Record<Exclude<Operator, 'unknown'>, UssdTemplate> = {
 }
 
 export interface UssdPlan {
-  /** Human-readable code, e.g. "*155*1*1*90123456*5000#" */
+  /** Human-readable code without the PIN, e.g. "*155*1*1*90123456*5000#" */
   displayCode: string
-  /** Same code, URL-encoded for a tel: link ("#" -> "%23"). */
+  /** Same code, URL-encoded for a tel: link ("#" -> "%23") — Dialer fallback only. */
   telUri: string
   manualBase: string
   menuLabel: string
   crossNetwork: boolean
+  /** Inserts the PIN before the final "#" for the one-shot in-app USSD call. */
+  withPin: (pin: string) => string
 }
 
 /**
- * Builds the USSD dial plan for a transfer. `myOperator` is the sender's own line — needed
- * because the same-network vs. other-network menu path differs.
+ * Builds the USSD plan for a transfer. `myOperator` is the sender's own line — needed because
+ * the same-network vs. other-network menu path differs.
  */
 export function buildUssdPlan(recipientOperator: Operator, myOperator: Operator, number: string, amount: number): UssdPlan | null {
   if (recipientOperator === 'unknown') return null
@@ -60,5 +64,6 @@ export function buildUssdPlan(recipientOperator: Operator, myOperator: Operator,
     manualBase: template.manualBase,
     menuLabel: template.menuLabel,
     crossNetwork,
+    withPin: (pin: string) => `${displayCode.slice(0, -1)}*${pin}#`,
   }
 }

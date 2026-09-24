@@ -29,7 +29,7 @@ export function Reports() {
   }
 
   return (
-    <div className="flex flex-1 flex-col gap-5 p-5">
+    <div className="page-enter flex flex-1 flex-col gap-5 p-5">
       <h1 className="text-xl font-semibold">Rapports</h1>
 
       <div className="grid grid-cols-3 gap-2.5">

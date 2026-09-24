@@ -1,6 +1,7 @@
 import { Capacitor } from '@capacitor/core'
 import { AndroidSmsRetriever } from '@capawesome/capacitor-android-sms-retriever'
-import { createContext, useCallback, useContext, useMemo, useState, type ReactNode } from 'react'
+import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
+import { cancelStaleOperations } from '../lib/autoCancel'
 import { computeOperatorFee } from '../lib/operatorFees'
 import { MockProvider } from '../lib/providers/mockProvider'
 import { NativeUssdProvider } from '../lib/providers/nativeUssdProvider'
@@ -12,6 +13,7 @@ import type { OperationType, Transaction, TransferRequest } from '../lib/types'
 
 const isNative = Capacitor.isNativePlatform()
 const provider = isNative ? new NativeUssdProvider() : new MockProvider()
+const STALE_CHECK_INTERVAL_MS = 60_000
 
 export interface StartOperationInput {
   operationType: OperationType
@@ -19,6 +21,8 @@ export interface StartOperationInput {
   operator: Transaction['operator']
   amount: number
   clientCharge: number
+  /** Only for depot/transfert on Android — never persisted. */
+  pin?: string
 }
 
 interface WalletContextValue {
@@ -34,10 +38,21 @@ interface WalletContextValue {
 const WalletContext = createContext<WalletContextValue | null>(null)
 
 export function WalletProvider({ children }: { children: ReactNode }) {
-  const [transactions, setTransactions] = useState<Transaction[]>(() => storage.getTransactions())
+  const [transactions, setTransactions] = useState<Transaction[]>(() => {
+    cancelStaleOperations()
+    return storage.getTransactions()
+  })
 
   const refresh = useCallback(() => {
+    cancelStaleOperations()
     setTransactions(storage.getTransactions())
+  }, [])
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      if (cancelStaleOperations()) setTransactions(storage.getTransactions())
+    }, STALE_CHECK_INTERVAL_MS)
+    return () => clearInterval(interval)
   }, [])
 
   const previewOperatorFee = useCallback((amount: number) => {
@@ -46,7 +61,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
   }, [])
 
   const startOperation = useCallback(async (input: StartOperationInput): Promise<Transaction> => {
-    const { operationType, counterpartyNumber, operator, amount, clientCharge } = input
+    const { operationType, counterpartyNumber, operator, amount, clientCharge, pin } = input
     const feeResult =
       operationType === 'retrait'
         ? { fee: 0, documented: true } // you don't pay the operator fee on money coming in
@@ -67,13 +82,13 @@ export function WalletProvider({ children }: { children: ReactNode }) {
     storage.saveTransaction(pending)
     setTransactions(storage.getTransactions())
 
-    const request: TransferRequest = { counterpartyNumber, operator, amount }
+    const request: TransferRequest = { counterpartyNumber, operator, amount, pin }
     const result = operationType === 'retrait' ? await provider.receive(request) : await provider.send(request)
 
     if (result.status === 'success') {
       storage.updateTransaction(pending.id, {
         status: 'success',
-        confirmationSource: isNative ? 'sms_auto' : 'simulated',
+        confirmationSource: result.confirmationSource ?? 'manual',
         providerReference: result.providerReference ?? result.smsInfo?.providerReference,
         withdrawalCode: result.smsInfo?.withdrawalCode,
         balanceAfterSms: result.smsInfo?.balanceAfter,

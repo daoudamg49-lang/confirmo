@@ -29,14 +29,18 @@ export function Settings() {
     setMarginRule(next)
   }
 
-  function updateMarginValue(value: number) {
-    const next = { ...marginRule, value: Number.isFinite(value) ? value : 0 }
+  function updateMarginValue(raw: string) {
+    // An empty/invalid intermediate value (e.g. while retyping) must never silently persist as 0.
+    if (raw.trim() === '') return
+    const value = parseInt(raw, 10)
+    if (!Number.isFinite(value)) return
+    const next = { ...marginRule, value }
     setMarginRuleState(next)
     setMarginRule(next)
   }
 
   return (
-    <div className="flex flex-1 flex-col gap-5 p-5">
+    <div className="page-enter flex flex-1 flex-col gap-5 p-5">
       <h1 className="text-xl font-semibold">Réglages</h1>
 
       <section className="flex flex-col gap-3 rounded-2xl border p-4" style={{ borderColor: 'var(--color-border)', background: 'var(--color-surface)' }}>
@@ -124,7 +128,7 @@ export function Settings() {
         <input
           type="number"
           value={marginRule.value}
-          onChange={(e) => updateMarginValue(parseInt(e.target.value, 10))}
+          onChange={(e) => updateMarginValue(e.target.value)}
           className="rounded-xl border px-4 py-2.5 outline-none"
           style={{ borderColor: 'var(--color-border)', background: 'var(--color-bg)', color: 'var(--color-text)' }}
         />
