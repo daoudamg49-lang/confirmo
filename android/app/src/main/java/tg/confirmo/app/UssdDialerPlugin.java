@@ -85,7 +85,7 @@ public class UssdDialerPlugin extends Plugin {
                     public void onReceiveUssdResponseFailed(TelephonyManager tm, String request, int failureCode) {
                         JSObject result = new JSObject();
                         result.put("failureCode", failureCode);
-                        call.reject("USSD_FAILED", null, result);
+                        call.reject("USSD_FAILED", (String) null, result);
                     }
                 },
                 new Handler(Looper.getMainLooper())
